@@ -149,7 +149,13 @@ function startRecording() {
     // Reset Lyrics
     DOM.audio.currentTime = 0;
     DOM.audio.play();
-    startLyricsSync();
+
+    if (!state.isCustomTrack) {
+        startLyricsSync();
+    } else {
+        DOM.lyrics.current.innerText = "Recording Custom Track...";
+        DOM.lyrics.next.innerText = "";
+    }
 
     // Start Recorder
     try {

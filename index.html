@@ -20,10 +20,15 @@
                 <p class="subtitle">Sing. Record. Shine.</p>
                 <div class="song-card" id="demo-song-card">
                     <div class="song-info">
-                        <h3>Cyberpunk City</h3>
-                        <p>Synthwave Demo Track</p>
+                        <h3 id="song-title">Cyberpunk City</h3>
+                        <p id="song-artist">Synthwave Demo Track</p>
                     </div>
                     <button id="start-btn" class="primary-btn">START RECORDING</button>
+
+                    <div class="upload-section" style="margin-top: 20px;">
+                        <input type="file" id="mr-upload" accept="audio/*" style="display: none;">
+                        <button id="upload-btn" class="secondary-btn" style="font-size: 0.8rem;">Upload Own MR</button>
+                    </div>
                 </div>
             </div>
         </section>
