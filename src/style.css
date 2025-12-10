@@ -1,0 +1,313 @@
+:root {
+    --bg-color: #050510;
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --primary-color: #00f2ff;
+    --secondary-color: #bd00ff;
+    --text-color: #ffffff;
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --font-main: 'Outfit', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-main);
+    overflow-x: hidden;
+    height: 100vh;
+}
+
+.app-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 10%, #1a1a40 0%, #050510 60%);
+}
+
+/* Typography & Glows */
+.glow-text {
+    font-size: 3rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, var(--primary-color), var(--text-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 3rem;
+}
+
+/* Views Management */
+.view {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.95);
+}
+
+.view.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: scale(1);
+    z-index: 10;
+}
+
+.view.hidden {
+    display: none;
+    /* simple toggle for now, can be improved with transitions */
+}
+
+/* Landing Page */
+.song-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: var(--glass-border);
+    padding: 2rem;
+    border-radius: 20px;
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s;
+}
+
+.song-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.song-info h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.song-info p {
+    color: var(--primary-color);
+    margin-bottom: 2rem;
+}
+
+/* Buttons */
+.primary-btn {
+    background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+    border: none;
+    padding: 1rem 2rem;
+    color: #fff;
+    border-radius: 50px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 1rem;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px rgba(189, 0, 255, 0.4);
+    transition: all 0.3s;
+}
+
+.primary-btn:hover {
+    box-shadow: 0 0 40px rgba(0, 242, 255, 0.6);
+    transform: scale(1.05);
+}
+
+.secondary-btn {
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    padding: 1rem 2rem;
+    color: #fff;
+    border-radius: 50px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 1rem;
+    text-transform: uppercase;
+    margin-left: 1rem;
+    transition: all 0.3s;
+}
+
+.secondary-btn:hover {
+    border-color: var(--text-color);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Studio View */
+.studio-header {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 20;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+.status-indicator {
+    background: rgba(0, 0, 0, 0.6);
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: #ff3b3b;
+    font-weight: bold;
+    display: none;
+}
+
+.status-indicator.recording {
+    display: block;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.video-stage {
+    position: relative;
+    width: 100%;
+    /* Fullscreen mostly */
+    height: 100vh;
+    overflow: hidden;
+    background: black;
+}
+
+#preview-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    /* Mirror effect */
+}
+
+.lyrics-overlay {
+    position: absolute;
+    bottom: 120px;
+    width: 100%;
+    text-align: center;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    padding: 40px 0 20px;
+    pointer-events: none;
+}
+
+.lyric-line {
+    font-size: 1.5rem;
+    transition: all 0.3s ease;
+    text-shadow: 2px 2px 4px black;
+    opacity: 0.6;
+}
+
+.lyric-line.active {
+    color: var(--primary-color);
+    font-size: 2rem;
+    font-weight: bold;
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.lyric-line.next {
+    font-size: 1.2rem;
+    opacity: 0.4;
+    margin-top: 10px;
+}
+
+.controls-bar {
+    position: absolute;
+    bottom: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    z-index: 20;
+}
+
+.record-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 4px solid white;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.record-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: #ff3b3b;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.record-btn.recording {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.record-btn.recording::after {
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    /* Stop square */
+}
+
+/* Result View */
+#result-view {
+    text-align: center;
+    background: rgba(0, 0, 0, 0.9);
+}
+
+.video-container {
+    width: 90%;
+    max-width: 400px;
+    margin: 20px auto;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+}
+
+#playback-video {
+    width: 100%;
+    display: block;
+}
