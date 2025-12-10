@@ -11,7 +11,11 @@ const DOM = {
         backHome: document.getElementById('back-home-btn'),
         recordToggle: document.getElementById('record-toggle-btn'),
         download: document.getElementById('download-btn'),
-        retake: document.getElementById('retake-btn')
+        retake: document.getElementById('retake-btn'),
+        upload: document.getElementById('upload-btn') // [NEW]
+    },
+    inputs: {
+        mrUpload: document.getElementById('mr-upload') // [NEW]
     },
     video: {
         preview: document.getElementById('preview-video'),
@@ -21,6 +25,10 @@ const DOM = {
     lyrics: {
         current: document.getElementById('current-lyric'),
         next: document.getElementById('next-lyric')
+    },
+    info: {
+        title: document.getElementById('song-title'),
+        artist: document.getElementById('song-artist')
     }
 };
 
@@ -43,7 +51,8 @@ let state = {
     mixedStream: null,
     videoStream: null,
     lyricsInterval: null,
-    recordedBlob: null
+    recordedBlob: null,
+    isCustomTrack: false // [NEW]
 };
 
 // --- Initialization ---
@@ -68,6 +77,31 @@ function setupEventListeners() {
     });
 
     DOM.btns.download.addEventListener('click', downloadVideo);
+
+    // [NEW] Upload Logic
+    if (DOM.btns.upload) {
+        DOM.btns.upload.addEventListener('click', () => DOM.inputs.mrUpload.click());
+    }
+    if (DOM.inputs.mrUpload) {
+        DOM.inputs.mrUpload.addEventListener('change', handleFileUpload);
+    }
+}
+
+function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Create URL for the file
+    const objectUrl = URL.createObjectURL(file);
+    DOM.audio.src = objectUrl;
+
+    // Update State
+    state.isCustomTrack = true;
+
+    // Update UI
+    if (DOM.info.title) DOM.info.title.innerText = file.name;
+    if (DOM.info.artist) DOM.info.artist.innerText = "Custom Track";
+    if (DOM.btns.upload) DOM.btns.upload.innerText = "Change Track";
 }
 
 // --- View Navigation ---
