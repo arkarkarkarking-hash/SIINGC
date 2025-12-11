@@ -61,7 +61,15 @@ async function init() {
     setupEventListeners();
 
     // Setup Audio Manager with the DOM Element
+    // Only setup if src exists or wait for upload?
+    // AudioManager handles empty handling gracefully for context creation
     audioManager.setupAudioElement(DOM.audio);
+
+    // Warn if demo mode active but no src
+    if (!DOM.audio.src || DOM.audio.src === "") {
+        DOM.info.title.innerText = "No Demo Track Loaded";
+        DOM.info.artist.innerText = "Please Upload MP3";
+    }
 }
 
 function setupEventListeners() {
@@ -180,10 +188,11 @@ function startRecording() {
     DOM.btns.recordToggle.classList.add('recording');
     document.querySelector('.status-indicator').classList.add('recording');
 
-    // Reset Lyrics
+    // Reset - Start Music
     DOM.audio.currentTime = 0;
     DOM.audio.play();
 
+    // Lyrics
     if (!state.isCustomTrack) {
         startLyricsSync();
     } else {
@@ -191,14 +200,24 @@ function startRecording() {
         DOM.lyrics.next.innerText = "";
     }
 
-    // Start Recorder
+    // Start Recorder - RECORD ONLY MIC + CAMERA (No Music)
+    // Music will be mixed later during playback/render
     try {
+        const micStream = audioManager.getMicStreamForRecord();
+        const videoStream = state.videoStream;
+
+        // Combine Camera Video + Mic Audio only for recording
+        const combinedStream = new MediaStream([
+            ...videoStream.getVideoTracks(),
+            ...micStream.getAudioTracks()
+        ]);
+
         // Prefer h264 for compatibility, fallback to webm
         const options = MediaRecorder.isTypeSupported('video/webm;codecs=h264')
             ? { mimeType: 'video/webm;codecs=h264' }
             : { mimeType: 'video/webm' };
 
-        state.mediaRecorder = new MediaRecorder(state.mixedStream, options);
+        state.mediaRecorder = new MediaRecorder(combinedStream, options);
 
         state.mediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0) state.recordedChunks.push(e.data);
@@ -234,6 +253,9 @@ function finishRecording() {
 
     const videoURL = URL.createObjectURL(blob);
     DOM.video.playback.src = videoURL;
+
+    // Setup Result View for Sync/Mix
+    setupResultView();
 
     switchView('result');
 }
@@ -281,20 +303,130 @@ function updateLyrics(time) {
 
 // --- Utilities ---
 
-function downloadVideo() {
-    if (!state.recordedBlob) return;
+// --- Result & Mixing Logic ---
 
-    const url = URL.createObjectURL(state.recordedBlob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = 'neon-karaoke-performance.webm';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-    }, 100);
+function setupResultView() {
+    // Controls Elements
+    const volMic = document.getElementById('vol-mic');
+    const volMusic = document.getElementById('vol-music');
+    const syncSlider = document.getElementById('sync-slider');
+    const syncVal = document.getElementById('sync-val');
+    const downloadBtn = document.getElementById('download-btn');
+    const playbackVideo = DOM.video.playback;
+    const backingAudio = DOM.audio;
+
+    // Reset Defaults
+    volMic.value = 1;
+    volMusic.value = 0.8;
+    syncSlider.value = 0;
+    syncVal.innerText = "0ms";
+
+    // Sync Playback Logic
+    playbackVideo.onplay = () => {
+        backingAudio.currentTime = playbackVideo.currentTime + (parseInt(syncSlider.value) / 1000);
+        backingAudio.play();
+    };
+    playbackVideo.onpause = () => backingAudio.pause();
+    playbackVideo.onseeking = () => {
+        backingAudio.currentTime = playbackVideo.currentTime + (parseInt(syncSlider.value) / 1000);
+    };
+    playbackVideo.onvolumechange = (e) => {
+        // Just keeping in sync if needed
+    };
+
+    // Volume Logic (Preview)
+    // HTML Media Element .volume is 0.0-1.0
+    volMic.addEventListener('input', (e) => playbackVideo.volume = Math.min(1, e.target.value));
+    volMusic.addEventListener('input', (e) => backingAudio.volume = Math.min(1, e.target.value));
+
+    syncSlider.addEventListener('input', (e) => {
+        syncVal.innerText = `${e.target.value}ms`;
+        if (!playbackVideo.paused) {
+            backingAudio.currentTime = playbackVideo.currentTime + (parseInt(e.target.value) / 1000);
+        }
+    });
+
+    // Save Mix Button
+    downloadBtn.onclick = () => renderAndDownload();
+    downloadBtn.innerText = "SAVE MIX";
+}
+
+async function renderAndDownload() {
+    const status = document.getElementById('render-status');
+    status.innerText = "Rendering... Please wait for playback capture.";
+
+    const playbackVideo = DOM.video.playback;
+    const backingAudio = DOM.audio;
+
+    // Reset to start
+    playbackVideo.currentTime = 0;
+    backingAudio.currentTime = 0 + (parseInt(document.getElementById('sync-slider').value) / 1000);
+
+    // Setup Realtime Capture
+    const stream = playbackVideo.captureStream();
+    // CaptureStream gets what is painted/played.
+    // However, it captures VIDEO element audio. We need to MIX it with Backing Audio.
+
+    const ctx = new AudioContext(); // New Context for mixing
+    const dest = ctx.createMediaStreamDestination();
+
+    // Sources
+    const micSrc = ctx.createMediaElementSource(playbackVideo);
+    const musicSrc = ctx.createMediaElementSource(backingAudio);
+
+    // Gains
+    const micGain = ctx.createGain();
+    micGain.gain.value = parseFloat(document.getElementById('vol-mic').value);
+
+    const musicGain = ctx.createGain();
+    musicGain.gain.value = parseFloat(document.getElementById('vol-music').value);
+
+    micSrc.connect(micGain).connect(dest);
+    musicSrc.connect(musicGain).connect(dest);
+
+    // Connect to destination (speakers) too so user hears what is happening?
+    // micGain.connect(ctx.destination); // Optional
+
+    // Create Recorder for the MIXED result
+    const mixedAudioTrack = dest.stream.getAudioTracks()[0];
+    const videoTrack = stream.getVideoTracks()[0];
+
+    const finalStream = new MediaStream([videoTrack, mixedAudioTrack]);
+    const recorder = new MediaRecorder(finalStream, { mimeType: 'video/webm' });
+    const chunks = [];
+
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = () => {
+        const b = new Blob(chunks, { type: 'video/webm' });
+        const u = URL.createObjectURL(b);
+        const a = document.createElement('a');
+        a.href = u;
+        a.download = 'neon-karaoke-mixed.webm';
+        a.click();
+        status.innerText = "Done! Saved as neon-karaoke-mixed.webm";
+
+        // Clean up connections
+        micSrc.disconnect();
+        musicSrc.disconnect();
+        ctx.close();
+
+        // Restore sources to original graph if needed, but we are done.
+    };
+
+    // Play and Record
+    try {
+        await playbackVideo.play();
+        await backingAudio.play();
+        recorder.start();
+
+        playbackVideo.onended = () => {
+            recorder.stop();
+            playbackVideo.onended = null;
+        };
+    } catch (e) {
+        console.error("Render Error:", e);
+        status.innerText = "Error during rendering.";
+    }
 }
 
 // Run
