@@ -5,7 +5,7 @@ class AudioManager {
         this.backingGain = this.ctx.createGain();
         this.micGain = this.ctx.createGain();
 
-        // Destination for "Live Monitoring" if we want it (usually mute mic to avoid feedback)
+        // Destination for "Live Monitoring"
         this.backingGain.connect(this.ctx.destination);
 
         this.micStream = null;
@@ -13,8 +13,7 @@ class AudioManager {
     }
 
     setupAudioElement(audioElement) {
-        this.audioElement = audioElement; // Keep ref
-        // For processing, we need MediaElementSource
+        this.audioElement = audioElement;
         if (!this.backingNode) {
             this.backingNode = this.ctx.createMediaElementSource(audioElement);
             this.backingNode.connect(this.backingGain);
@@ -32,7 +31,6 @@ class AudioManager {
         }
     }
 
-    // Returns ONLY the Mic stream for the Recorder (we don't mix music in anymore during record)
     getMicStreamForRecord() {
         return this.micStream;
     }
@@ -40,6 +38,37 @@ class AudioManager {
     resume() {
         if (this.ctx.state === 'suspended') {
             this.ctx.resume();
+        }
+    }
+
+    // --- Visualization Helpers ---
+
+    async decodeAudioData(blobOrArrayBuffer) {
+        try {
+            let arrayBuffer;
+            if (blobOrArrayBuffer instanceof Blob) {
+                arrayBuffer = await blobOrArrayBuffer.arrayBuffer();
+            } else {
+                arrayBuffer = blobOrArrayBuffer;
+            }
+            // Decode
+            const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+            return audioBuffer;
+        } catch (e) {
+            console.error("Audio Decode Error:", e);
+            return null;
+        }
+    }
+
+    // Fetch and decode from URL (e.g. Backing Track)
+    async loadAudioBufferFromUrl(url) {
+        try {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            return await this.decodeAudioData(arrayBuffer);
+        } catch (e) {
+            console.error("Failed to load/decode backing track from URL:", e);
+            return null;
         }
     }
 
@@ -57,34 +86,12 @@ class AudioManager {
         const videoGain = this.ctx.createGain();
         videoGain.gain.value = options.micVol;
 
-        // Apply Delay if Sync Offset > 0 (Vocals need delay)
-        // Ideally we use a DelayNode. 
-        // Sync means shifting relative time. 
-        // If slider is +100ms, vocals are LATE, so we delay Music? 
-        // Usually "Sync" adjusts Vocal track position.
-        // If Vocals are late (behind beat), we need to play them EARLIER (negative delay? impossible effectively without shifting start time).
-        // If we implement simple delay:
-        // delayNode for VideoSource (Vocals). 
-        const delayNode = this.ctx.createDelay(1.0); // Max 1s
-        // If syncOffsetMs is positive -> Delay Vocals. 
-        // If negative -> We'd need to delay Music.
-        // Let's implement dual delays or just simple logic:
-
-        // For MVP Rendering: just separate gains for now. Sync is hard to "Re-record" in real-time without seeking.
-        // Actually, we can just use `currentTime` manipulation during playback for preview,
-        // but for EXPORT, we need to capture the stream.
-
         // Simplified Render:
-        // We will play both elements from start.
-        // We apply Gain.
-        // Stream goes to `renderDest`.
-
         videoSource.connect(videoGain);
         videoGain.connect(renderDest);
 
         // 2. Backing Source (The original music)
         // We need a NEW source because the original `backingNode` is attached to `audioElement` which is for playback.
-        // Actually we can reuse `backingElement` if we are "playing" it for the render.
         const musicSource = this.ctx.createMediaElementSource(backingElement);
         const musicGain = this.ctx.createGain();
         musicGain.gain.value = options.musicVol;
@@ -95,7 +102,6 @@ class AudioManager {
         return {
             stream: renderDest.stream,
             cleanup: () => {
-                // Disconnect everything to avoid leaks/double connections on next run
                 videoSource.disconnect();
                 videoGain.disconnect();
                 musicSource.disconnect();
@@ -103,9 +109,6 @@ class AudioManager {
             }
         };
     }
-
-    // Helper to Create Audio Buffers for true Offline Rendering (Advanced)
-    // For now, we stick to real-time play-through capture (simpler) logic in App.js
 }
 
 export default new AudioManager();
