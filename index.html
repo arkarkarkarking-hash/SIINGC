@@ -27,8 +27,9 @@
 
                     <div class="upload-section" style="margin-top: 20px;">
                         <input type="file" id="mr-upload" accept=".mp3,audio/mpeg" style="display: none;">
-                        <button id="upload-btn" class="secondary-btn" style="font-size: 0.8rem;">Upload Own MR
-                            (MP3)</button>
+                        <label for="mr-upload" id="upload-label" class="secondary-btn"
+                            style="font-size: 0.8rem; display: inline-block; cursor: pointer;">Upload Own MR
+                            (MP3)</label>
                     </div>
                 </div>
             </div>
@@ -100,8 +101,8 @@
     </div>
 
     <!-- Hidden audio element for the backing track source -->
-    <audio id="backing-track" src="https://cdns-preview-d.dzcdn.net/stream/c-deda7fa9316d9e9e8802263ddbabdfdf-3.mp3"
-        crossorigin="anonymous"></audio>
+    <!-- Src will be set by JS or Upload -->
+    <audio id="backing-track" crossorigin="anonymous"></audio>
     <!-- Using a simplified preview track from Deezer (Daft Punk - generic example placeholder if needed, replacing with a generic royalty free or generated beat URL in actual code if preferred. Let's use a placeholder placeholder first or a real URL if one exists.
     Actually, let's use a reliable placeholder or just assume I'll provide one.
      usage of 'https://actions.google.com/sounds/v1/science_fiction/human_futuristic_hum.ogg' as a dummy or similar public domain. 

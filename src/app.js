@@ -12,7 +12,8 @@ const DOM = {
         recordToggle: document.getElementById('record-toggle-btn'),
         download: document.getElementById('download-btn'),
         retake: document.getElementById('retake-btn'),
-        upload: document.getElementById('upload-btn') // [NEW]
+        retake: document.getElementById('retake-btn'),
+        uploadLabel: document.getElementById('upload-label') // [Refactored to Label]
     },
     inputs: {
         mrUpload: document.getElementById('mr-upload') // [NEW]
@@ -84,12 +85,11 @@ function setupEventListeners() {
         switchView('studio');
     });
 
-    DOM.btns.download.addEventListener('click', downloadVideo);
+    // Download button logic is handled in setupResultView once recording is done
 
     // [NEW] Upload Logic
-    if (DOM.btns.upload) {
-        DOM.btns.upload.addEventListener('click', () => DOM.inputs.mrUpload.click());
-    }
+    // No click listener needed for Label-based input
+
     if (DOM.inputs.mrUpload) {
         DOM.inputs.mrUpload.addEventListener('change', handleFileUpload);
     }
@@ -109,7 +109,7 @@ function handleFileUpload(e) {
     // Update UI
     if (DOM.info.title) DOM.info.title.innerText = file.name;
     if (DOM.info.artist) DOM.info.artist.innerText = "Custom Track";
-    if (DOM.btns.upload) DOM.btns.upload.innerText = "Change Track";
+    if (DOM.btns.uploadLabel) DOM.btns.uploadLabel.innerText = "Change Track";
 }
 
 // --- View Navigation ---
