@@ -122,14 +122,21 @@ async function enterStudioMode() {
         switchView('studio');
 
         // 1. Get Camera AND Mic in one request to prevent permission conflicts
-        const combinedUserMedia = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: "user"
-            },
-            audio: true // Requesting both at once
-        });
+        let combinedUserMedia;
+        try {
+            // Try ideal constraints
+            combinedUserMedia = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                audio: true
+            });
+        } catch (e) {
+            console.warn("Ideal constraints failed, trying basic constraints", e);
+            // Fallback for some devices (like the subagent or older phones)
+            combinedUserMedia = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+        }
 
         // Split them for our architecture
         const videoStream = new MediaStream(combinedUserMedia.getVideoTracks());
@@ -153,8 +160,8 @@ async function enterStudioMode() {
         state.mixedStream = combinedStream;
 
     } catch (err) {
-        alert("Could not access camera/microphone. Please allow permissions.");
-        console.error(err);
+        alert(`Could not access camera/microphone. Error: ${err.message}. Please check permissions.`);
+        console.error("Media Access Error:", err);
         switchView('home');
     }
 }

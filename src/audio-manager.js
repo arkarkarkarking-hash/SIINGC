@@ -42,6 +42,14 @@ class AudioManager {
         return this.micStream;
     }
 
+    connectMic(stream) {
+        if (this.micSource) {
+            this.micSource.disconnect();
+        }
+        this.micSource = this.ctx.createMediaStreamSource(stream);
+        this.micSource.connect(this.micGain);
+    }
+
     resume() {
         if (this.ctx.state === 'suspended') {
             this.ctx.resume();
