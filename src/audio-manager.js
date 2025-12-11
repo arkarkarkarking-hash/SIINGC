@@ -21,6 +21,7 @@ class AudioManager {
     }
 
     async getMicStream() {
+        if (this.micStream) return this.micStream; // Return existing if set
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             this.micStream = stream;
@@ -29,6 +30,12 @@ class AudioManager {
             console.error('Mic permission denied', err);
             throw err;
         }
+    }
+
+    setMicStream(stream) {
+        this.micStream = stream;
+        // Optionally connect it immediately if needed, but getMicStream handles return
+        return stream;
     }
 
     getMicStreamForRecord() {

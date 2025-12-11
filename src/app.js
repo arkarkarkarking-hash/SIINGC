@@ -121,22 +121,26 @@ async function enterStudioMode() {
 
         switchView('studio');
 
-        // 1. Get Camera
-        const videoStream = await navigator.mediaDevices.getUserMedia({
+        // 1. Get Camera AND Mic in one request to prevent permission conflicts
+        const combinedUserMedia = await navigator.mediaDevices.getUserMedia({
             video: {
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
                 facingMode: "user"
             },
-            audio: false // We handle audio separately
+            audio: true // Requesting both at once
         });
+
+        // Split them for our architecture
+        const videoStream = new MediaStream(combinedUserMedia.getVideoTracks());
+        const audioStream = new MediaStream(combinedUserMedia.getAudioTracks());
 
         state.videoStream = videoStream;
         DOM.video.preview.srcObject = videoStream;
 
-        // 2. Get Mic & Setup Audio Mixing
-        const micStream = await audioManager.getMicStream();
-        audioManager.connectMic(micStream);
+        // 2. Pass Audio to Manager
+        audioManager.setMicStream(audioStream);
+        audioManager.connectMic(audioStream);
 
         // 3. Prepare Mixed Stream for Recording
         // We need: Camera Video Track + Mixed Audio Track
