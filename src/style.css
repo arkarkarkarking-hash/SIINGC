@@ -4,7 +4,7 @@
     --primary-color: #00f2ff;
     --secondary-color: #bd00ff;
     --text-color: #ffffff;
-    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --glass-border: 1px solid rgba(133, 133, 133, 0.23);
     --font-main: 'Outfit', sans-serif;
 }
 
@@ -76,7 +76,6 @@ body {
 
 .view.hidden {
     display: none;
-    /* simple toggle for now, can be improved with transitions */
 }
 
 /* Landing Page */
@@ -202,7 +201,6 @@ body {
 .video-stage {
     position: relative;
     width: 100%;
-    /* Fullscreen mostly */
     height: 100vh;
     overflow: hidden;
     background: black;
@@ -213,7 +211,6 @@ body {
     height: 100%;
     object-fit: cover;
     transform: scaleX(-1);
-    /* Mirror effect */
 }
 
 .lyrics-overlay {
@@ -288,26 +285,180 @@ body {
     width: 30px;
     height: 30px;
     border-radius: 4px;
-    /* Stop square */
 }
 
-/* Result View */
+/* --- RESULT VIEW REDESIGN --- */
 #result-view {
     text-align: center;
-    background: rgba(0, 0, 0, 0.9);
+    background: var(--bg-color);
+    /* No transparency, solid background */
+    padding-top: 50px;
+    /* Space for header */
 }
 
+/* Container for Video & Timeline */
+.result-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 800px;
+    /* Limit width for desktop */
+    margin: 0 auto;
+}
+
+/* 1. Video Player Style */
 .video-container {
-    width: 90%;
-    max-width: 400px;
-    margin: 20px auto;
-    border-radius: 20px;
+    width: 100%;
+    aspect-ratio: 16/9;
+    /* Maintain cinematic aspect */
+    background: black;
+    border-radius: 12px;
     overflow: hidden;
-    border: 2px solid var(--primary-color);
-    box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 0;
+    /* Attach to timeline */
+    position: relative;
+    z-index: 2;
 }
 
 #playback-video {
     width: 100%;
+    height: 100%;
     display: block;
+    object-fit: contain;
+    /* Fit whole video */
+}
+
+/* 2. Timeline Scrubber Style */
+.timeline-container {
+    position: relative;
+    width: 100%;
+    height: 120px;
+    background: #12121e;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: none;
+    margin-bottom: 20px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+#timeline-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Playhead Line */
+#timeline-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: #fff;
+    box-shadow: 0 0 10px #fff, 0 0 20px var(--primary-color);
+    pointer-events: none;
+    z-index: 5;
+    transition: left 0.05s linear;
+    /* Smooth micro-movement */
+}
+
+.timeline-legend {
+    position: absolute;
+    bottom: 5px;
+    left: 10px;
+    display: flex;
+    gap: 15px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot.mr {
+    background: #0ff;
+    box-shadow: 0 0 5px #0ff;
+}
+
+.dot.mic {
+    background: #f0f;
+    box-shadow: 0 0 5px #f0f;
+}
+
+/* 3. Controls Panel */
+.controls-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto 30px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border: var(--glass-border);
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.control-group label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.sync-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+input[type=range] {
+    width: 100%;
+    accent-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.1);
+    height: 4px;
+    border-radius: 2px;
+}
+
+.value-display {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    min-width: 50px;
+    text-align: right;
+}
+
+/* Responsive Mobile */
+@media (max-width: 600px) {
+    .controls-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .timeline-container {
+        height: 100px;
+    }
 }

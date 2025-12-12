@@ -95,9 +95,7 @@ function setupEventListeners() {
     if (DOM.inputs.mrUpload) {
         DOM.inputs.mrUpload.addEventListener('change', handleFileUpload);
     }
-    if (DOM.inputs.mrUpload) {
-        DOM.inputs.mrUpload.addEventListener('change', handleFileUpload);
-    }
+
 
     // Result View Controls Listeners (Once)
     const playbackVideo = DOM.video.playback;
