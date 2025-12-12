@@ -49,7 +49,7 @@ let state = {
     isRecording: false,
     mediaRecorder: null,
     recordedChunks: [],
-    mixedStream: null,
+
     videoStream: null,
     lyricsInterval: null,
     recordedBlob: null,
@@ -149,15 +149,7 @@ async function enterStudioMode() {
         audioManager.setMicStream(audioStream);
         audioManager.connectMic(audioStream);
 
-        // 3. Prepare Mixed Stream for Recording
-        // We need: Camera Video Track + Mixed Audio Track
-        const mixedAudioStream = audioManager.getMixedStream();
-        const combinedStream = new MediaStream([
-            ...videoStream.getVideoTracks(),
-            ...mixedAudioStream.getAudioTracks()
-        ]);
 
-        state.mixedStream = combinedStream;
 
     } catch (err) {
         alert(`Could not access camera/microphone. Error: ${err.message}. Please check permissions.`);
