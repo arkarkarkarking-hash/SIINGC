@@ -15,8 +15,21 @@ export class AudioEngine {
         return this.backingBuffer.duration;
     }
 
-    async requestMicrophone() {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    async requestStream() {
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    autoGainControl: false,
+                    noiseSuppression: false
+                },
+                video: true
+            });
+            return this.stream;
+        } catch (err) {
+            console.error("Error accessing media devices:", err);
+            throw err;
+        }
     }
 
     startRecording(onEnded) {

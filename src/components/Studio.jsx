@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, Mic, Square, Play, Download, Music } from 'lucide-react';
 import { AudioEngine } from '../services/AudioEngine';
 
@@ -12,16 +12,33 @@ export default function Studio() {
     const [vocalVol, setVocalVol] = useState(1.0);
     const [isProcessing, setIsProcessing] = useState(false);
 
+    const videoRef = useRef(null);
+    const [error, setError] = useState(null);
+
     // Handlers
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            setMrName(file.name);
-            setIsProcessing(true);
-            await audioEngine.loadBackingTrack(file);
-            await audioEngine.requestMicrophone();
-            setIsProcessing(false);
-            setStep('record');
+            try {
+                setError(null);
+                setMrName(file.name);
+                setIsProcessing(true);
+                await audioEngine.loadBackingTrack(file);
+                const stream = await audioEngine.requestStream(); // Updated method
+
+                // Initialize Video Preview
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    videoRef.current.muted = true; // Prevent feedback loops
+                }
+
+                setIsProcessing(false);
+                setStep('record');
+            } catch (err) {
+                console.error(err);
+                setError("Error accessing microphone/camera or loading file. Please allow permissions.");
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -61,6 +78,12 @@ export default function Studio() {
 
             <div className="glass-panel studio-panel">
 
+                {error && (
+                    <div style={{ color: '#ff0055', marginBottom: '1rem', textAlign: 'center' }}>
+                        {error}
+                    </div>
+                )}
+
                 {/* STEP 1: UPLOAD */}
                 {step === 'upload' && (
                     <div className="upload-section">
@@ -81,6 +104,27 @@ export default function Studio() {
                 {step === 'record' && (
                     <div className="record-section">
                         <h2 style={{ marginBottom: '1rem' }}>{mrName}</h2>
+
+                        {/* Video Preview */}
+                        <div style={{
+                            width: '100%',
+                            maxWidth: '400px',
+                            height: '300px',
+                            background: '#000',
+                            margin: '0 auto 2rem auto',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            border: '1px solid var(--border)'
+                        }}>
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+                            />
+                        </div>
+
                         <div className={`status-display ${isRecording ? 'recording' : ''}`}>
                             {isRecording ? (
                                 <div className="recording-text">
@@ -94,8 +138,20 @@ export default function Studio() {
                         <button
                             className={`btn-icon record-btn ${isRecording ? 'active' : ''}`}
                             onClick={toggleRecording}
+                            style={{
+                                width: 'auto',
+                                height: 'auto',
+                                borderRadius: '8px',
+                                padding: '12px 32px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px'
+                            }}
                         >
                             {isRecording ? <Square size={32} fill="white" /> : <Mic size={32} />}
+                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                {isRecording ? "STOP" : "녹화 시작"}
+                            </span>
                         </button>
                     </div>
                 )}
