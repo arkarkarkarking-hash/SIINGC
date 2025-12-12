@@ -54,7 +54,8 @@ let state = {
     videoStream: null,
     lyricsInterval: null,
     recordedBlob: null,
-    isCustomTrack: false // [NEW]
+    isCustomTrack: false, // [NEW]
+    visualizer: null // [NEW]
 };
 
 // --- Initialization ---
@@ -94,6 +95,73 @@ function setupEventListeners() {
     if (DOM.inputs.mrUpload) {
         DOM.inputs.mrUpload.addEventListener('change', handleFileUpload);
     }
+    if (DOM.inputs.mrUpload) {
+        DOM.inputs.mrUpload.addEventListener('change', handleFileUpload);
+    }
+
+    // Result View Controls Listeners (Once)
+    const playbackVideo = DOM.video.playback;
+    const backingAudio = DOM.audio;
+    const volMic = document.getElementById('vol-mic');
+    const volMusic = document.getElementById('vol-music');
+    const syncSlider = document.getElementById('sync-slider');
+    const syncVal = document.getElementById('sync-val');
+
+    // Volume Logic
+    const updateVolumes = () => {
+        const mv = parseFloat(volMic.value);
+        const bv = parseFloat(volMusic.value);
+        audioManager.setResultVolumes(mv, bv);
+    };
+    volMic.addEventListener('input', updateVolumes);
+    volMusic.addEventListener('input', updateVolumes);
+
+    // Sync Logic
+    syncSlider.addEventListener('input', (e) => {
+        syncVal.innerText = `${e.target.value}ms`;
+        if (!playbackVideo.paused) {
+            backingAudio.currentTime = playbackVideo.currentTime + (parseInt(e.target.value) / 1000);
+        }
+    });
+
+    // Playback Sync Logic (Binding video events to audio)
+    playbackVideo.onplay = () => {
+        backingAudio.currentTime = playbackVideo.currentTime + (parseInt(syncSlider.value) / 1000); // Use current slider val
+        backingAudio.play();
+    };
+    playbackVideo.onpause = () => backingAudio.pause();
+    playbackVideo.onseeking = () => {
+        backingAudio.currentTime = playbackVideo.currentTime + (parseInt(syncSlider.value) / 1000);
+    };
+
+    // Playhead Animation Loop
+    const playhead = document.getElementById('timeline-playhead');
+    const updatePlayhead = () => {
+        if (!playbackVideo.paused) {
+            const dur = playbackVideo.duration || 1;
+            const pct = (playbackVideo.currentTime / dur) * 100;
+            if (playhead) playhead.style.left = `${pct}%`;
+            requestAnimationFrame(updatePlayhead);
+        }
+    };
+    playbackVideo.addEventListener('play', () => requestAnimationFrame(updatePlayhead));
+    playbackVideo.addEventListener('timeupdate', () => {
+        const dur = playbackVideo.duration || 1;
+        const pct = (playbackVideo.currentTime / dur) * 100;
+        if (playhead) playhead.style.left = `${pct}%`;
+    });
+
+    // Canvas Seek Click
+    document.getElementById('timeline-canvas').onclick = (e) => {
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = x / rect.width;
+        const duration = playbackVideo.duration || 1;
+        playbackVideo.currentTime = percent * duration;
+    };
+
+    // Download
+    DOM.btns.download.onclick = () => renderAndDownload();
 }
 
 function handleFileUpload(e) {
