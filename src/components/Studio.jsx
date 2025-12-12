@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Mic, Square, Play, Download, Music, Sliders } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, Mic, Square, Play, Download, Music } from 'lucide-react';
 import { AudioEngine } from '../services/AudioEngine';
 
 const audioEngine = new AudioEngine();
@@ -27,14 +27,14 @@ export default function Studio() {
 
     const toggleRecording = async () => {
         if (isRecording) {
-            const audioUrl = await audioEngine.stopRecording();
+            await audioEngine.stopRecording();
             setIsRecording(false);
             setStep('mix');
         } else {
             setIsRecording(true);
             audioEngine.startRecording(async () => {
                 // Auto stop callback
-                const audioUrl = await audioEngine.stopRecording();
+                await audioEngine.stopRecording();
                 setIsRecording(false);
                 setStep('mix');
             });
@@ -53,19 +53,17 @@ export default function Studio() {
     };
 
     return (
-        <div className="container" style={{ maxWidth: '800px', margin: '4rem auto' }}>
-            <header style={{ textAlign: 'center', marginBottom: '3rem' }}>
-                <h1 className="neon-text" style={{ fontSize: '3rem', marginBottom: '1rem', color: 'var(--primary)' }}>
-                    NEON STUDIO
-                </h1>
+        <div className="studio-container">
+            <header className="studio-header">
+                <h1 className="studio-title neon-text">NEON STUDIO</h1>
                 <p style={{ color: 'var(--text-muted)' }}>Professional Web-Based Recording Suite</p>
             </header>
 
-            <div className="glass-panel" style={{ padding: '3rem', minHeight: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="glass-panel studio-panel">
 
                 {/* STEP 1: UPLOAD */}
                 {step === 'upload' && (
-                    <div style={{ textAlign: 'center' }}>
+                    <div className="upload-section">
                         <div style={{ marginBottom: '2rem' }}>
                             <Music size={64} color="var(--primary)" />
                         </div>
@@ -81,20 +79,11 @@ export default function Studio() {
 
                 {/* STEP 2: RECORD */}
                 {step === 'record' && (
-                    <div style={{ textAlign: 'center', width: '100%' }}>
+                    <div className="record-section">
                         <h2 style={{ marginBottom: '1rem' }}>{mrName}</h2>
-                        <div style={{
-                            height: '100px',
-                            background: 'rgba(0,0,0,0.3)',
-                            borderRadius: '8px',
-                            marginBottom: '2rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: isRecording ? '1px solid #ff0055' : '1px solid var(--border)'
-                        }}>
+                        <div className={`status-display ${isRecording ? 'recording' : ''}`}>
                             {isRecording ? (
-                                <div className="recording-indicator" style={{ color: '#ff0055', animation: 'pulse 1s infinite' }}>
+                                <div className="recording-text">
                                     ● RECORDING
                                 </div>
                             ) : (
@@ -102,11 +91,10 @@ export default function Studio() {
                             )}
                         </div>
 
-                        <button className="btn-icon" onClick={toggleRecording} style={{
-                            width: '80px', height: '80px', margin: '0 auto',
-                            background: isRecording ? '#ff0055' : 'var(--bg-card)',
-                            borderColor: isRecording ? '#ff0055' : 'var(--border)'
-                        }}>
+                        <button
+                            className={`btn-icon record-btn ${isRecording ? 'active' : ''}`}
+                            onClick={toggleRecording}
+                        >
                             {isRecording ? <Square size={32} fill="white" /> : <Mic size={32} />}
                         </button>
                     </div>
@@ -114,11 +102,11 @@ export default function Studio() {
 
                 {/* STEP 3: MIX */}
                 {step === 'mix' && (
-                    <div style={{ width: '100%', maxWidth: '500px' }}>
+                    <div className="mix-section">
                         <h2 style={{ marginBottom: '2rem', textAlign: 'center' }}>Mixing Console</h2>
 
-                        <div style={{ marginBottom: '2rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <div className="slider-group">
+                            <div className="slider-label">
                                 <span><Music size={16} /> Backing Track</span>
                                 <span>{Math.round(backingVol * 100)}%</span>
                             </div>
@@ -128,8 +116,8 @@ export default function Studio() {
                             />
                         </div>
 
-                        <div style={{ marginBottom: '3rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <div className="slider-group" style={{ marginBottom: '3rem' }}>
+                            <div className="slider-label">
                                 <span><Mic size={16} /> Vocals</span>
                                 <span>{Math.round(vocalVol * 100)}%</span>
                             </div>
@@ -139,7 +127,7 @@ export default function Studio() {
                             />
                         </div>
 
-                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                        <div className="action-buttons">
                             <button className="btn-primary" onClick={() => setStep('record')} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
                                 Retry
                             </button>
@@ -152,15 +140,6 @@ export default function Studio() {
                 )}
 
             </div>
-
-            {/* Simple Global Animations */}
-            <style>{`
-        @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.5; }
-          100% { opacity: 1; }
-        }
-      `}</style>
         </div>
     );
 }

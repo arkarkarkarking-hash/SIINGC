@@ -125,3 +125,175 @@ input[type="range"]::-webkit-slider-runnable-track {
   background: var(--bg-card);
   border-radius: 2px;
 }
+
+/* Responsive Layout & Components */
+.studio-container {
+  max-width: 800px;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+.studio-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.studio-title {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: var(--primary);
+}
+
+.studio-panel {
+  padding: 3rem;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-section {
+  text-align: center;
+  width: 100%;
+}
+
+.record-section {
+  text-align: center;
+  width: 100%;
+}
+
+.mix-section {
+  width: 100%;
+  max-width: 500px;
+}
+
+/* Status Indicator */
+.status-display {
+  height: 100px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.status-display.recording {
+  border-color: #ff0055;
+}
+
+.recording-text {
+  color: #ff0055;
+  animation: pulse 1s infinite;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+}
+
+/* Controls */
+.record-btn {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto;
+  font-size: 1.5rem;
+}
+
+.record-btn.active {
+  background: #ff0055;
+  border-color: #ff0055;
+}
+
+.slider-group {
+  margin-bottom: 2rem;
+}
+
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .studio-container {
+    margin: 1rem auto;
+    padding: 0 1rem;
+  }
+
+  .studio-header {
+    margin-bottom: 2rem;
+  }
+
+  .studio-title {
+    font-size: 2rem;
+  }
+
+  .studio-panel {
+    padding: 1.5rem;
+    min-height: 60vh;
+    /* Use more height on mobile */
+  }
+
+  /* Make buttons larger for touch */
+  .btn-primary {
+    padding: 16px 32px;
+    font-size: 1rem;
+    width: 100%;
+    /* Full width buttons on mobile */
+    justify-content: center;
+  }
+
+  .btn-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .record-btn {
+    width: 100px;
+    /* Even larger record button */
+    height: 100px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.8rem;
+  }
+
+  .mix-section {
+    width: 100%;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    height: 28px;
+    /* Larger slider thumb */
+    width: 28px;
+    margin-top: -12px;
+  }
+}
