@@ -333,31 +333,34 @@ function setupResultView() {
     playbackVideo.onseeking = () => {
         backingAudio.currentTime = playbackVideo.currentTime + (parseInt(syncSlider.value) / 1000);
     };
-    playbackVideo.onvolumechange = (e) => {
-        // Just keeping in sync if needed
+
+
+    syncSlider.addEventListener('input', (e) => {
+        syncVal.innerText = `${e.target.value}ms`;
+        if (!playbackVideo.paused) {
+            backingAudio.currentTime = playbackVideo.currentTime + (parseInt(e.target.value) / 1000);
+        }
+    });
+
+    // Audio Graph Volume Control via AudioManager
+    const updateVolumes = () => {
+        const mv = parseFloat(volMic.value);
+        const bv = parseFloat(volMusic.value);
+        audioManager.setResultVolumes(mv, bv);
     };
 
-});
+    volMic.addEventListener('input', updateVolumes);
+    volMusic.addEventListener('input', updateVolumes);
 
-// Audio Graph Volume Control via AudioManager
-const updateVolumes = () => {
-    const mv = parseFloat(volMic.value);
-    const bv = parseFloat(volMusic.value);
-    audioManager.setResultVolumes(mv, bv);
-};
+    // Initial set
+    updateVolumes();
 
-volMic.addEventListener('input', updateVolumes);
-volMusic.addEventListener('input', updateVolumes);
+    // Save Mix Button
+    downloadBtn.onclick = () => renderAndDownload();
+    downloadBtn.innerText = "SAVE MIX";
 
-// Initial set
-updateVolumes();
-
-// Save Mix Button
-downloadBtn.onclick = () => renderAndDownload();
-downloadBtn.innerText = "SAVE MIX";
-
-// Setup Audio Manager for Preview (High Quality Gain control)
-audioManager.setupResultPreview(playbackVideo);
+    // Setup Audio Manager for Preview (High Quality Gain control)
+    audioManager.setupResultPreview(playbackVideo);
 }
 
 async function renderAndDownload() {
@@ -375,16 +378,9 @@ async function renderAndDownload() {
 
     // Reset to start for recording
     playbackVideo.currentTime = 0;
-    // Apply sync offset: if voice is late (positive delay needed for voice), we might play music EARLIER or video LATER.
-    // Standard interpretation: "Sync" usually delays the track relative to the other.
-    // If sync slider is "Delay Vocals" (positive), we want video to start slightly LATER than audio? 
-    // Or normally "Delay" means shift positive. 
-    // Logic in preview: backingAudio.currentTime = playbackVideo.currentTime + offset.
-    // If offset is +1s: When video is at 0, audio is at 1. Audio is AHEAD. 
-    // This creates "Vocals (Video)" appearing DELAYED relative to music. Correct.
     backingAudio.currentTime = 0 + syncSec;
 
-    // Setup Realtime Capture
+    // Get capture stream for video track
     let stream;
     try {
         if (playbackVideo.captureStream) {
@@ -400,25 +396,11 @@ async function renderAndDownload() {
         return;
     }
 
-    const ctx = new AudioContext();
-    const dest = ctx.createMediaStreamDestination();
-
-    // Sources
-    const micSrc = ctx.createMediaElementSource(playbackVideo);
-    const musicSrc = ctx.createMediaElementSource(backingAudio);
-
-    // Gains
-    const micGain = ctx.createGain();
-    micGain.gain.value = micVol;
-
-    const musicGain = ctx.createGain();
-    musicGain.gain.value = musicVol;
-
-    micSrc.connect(micGain).connect(dest);
-    musicSrc.connect(musicGain).connect(dest);
+    // Start Audio Export Graph
+    const exportSession = audioManager.startResultExport(playbackVideo, { micVol, musicVol });
 
     // Mix Audio Track + Original Video Track
-    const mixedAudioTrack = dest.stream.getAudioTracks()[0];
+    const mixedAudioTrack = exportSession.stream.getAudioTracks()[0];
     const videoTrack = stream.getVideoTracks()[0];
     const finalStream = new MediaStream([videoTrack, mixedAudioTrack]);
 
@@ -434,7 +416,7 @@ async function renderAndDownload() {
         fileExt = 'mp4';
     } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
         mimeType = 'video/webm;codecs=h264';
-        fileExt = 'webm'; // Can be renamed to mp4 sometimes but safe to keep webm
+        fileExt = 'webm';
     }
 
     console.log(`Exporting as ${mimeType}`);
@@ -456,11 +438,9 @@ async function renderAndDownload() {
         status.innerText = `Done! Saved as neon-karaoke-mixed.${fileExt}`;
 
         // Cleanup
-        micSrc.disconnect();
-        musicSrc.disconnect();
-        ctx.close();
+        exportSession.cleanup();
 
-        // Loop back for user to play again if they want
+        // Resume preview
         playbackVideo.currentTime = 0;
         playbackVideo.onended = null;
     };
@@ -482,9 +462,7 @@ async function renderAndDownload() {
         console.error("Render Error:", e);
         status.innerText = "Error during rendering. See console.";
         if (recorder.state !== 'inactive') recorder.stop();
-        micSrc.disconnect();
-        musicSrc.disconnect();
-        ctx.close();
+        exportSession.cleanup();
     }
 }
 
