@@ -1,4 +1,5 @@
 import audioManager from './audio-manager.js';
+import { WaveformVisualizer } from './waveform-visualizer.js';
 
 const DOM = {
     views: {
@@ -361,6 +362,72 @@ function setupResultView() {
 
     // Setup Audio Manager for Preview (High Quality Gain control)
     audioManager.setupResultPreview(playbackVideo);
+
+    // --- WAVEFORM VISUALIZATION ---
+    const visualizer = new WaveformVisualizer('timeline-canvas');
+    const playhead = document.createElement('div');
+    playhead.id = 'timeline-playhead';
+    playhead.style.position = 'absolute';
+    playhead.style.top = '0';
+    playhead.style.bottom = '0';
+    playhead.style.left = '0';
+    playhead.style.width = '2px';
+    playhead.style.backgroundColor = '#fff';
+    playhead.style.pointerEvents = 'none'; // Click goes through to canvas
+    playhead.style.boxShadow = '0 0 5px #fff';
+    const container = document.querySelector('.timeline-container');
+
+    // Remove existing playhead if any (re-entry safety)
+    const oldPh = document.getElementById('timeline-playhead');
+    if (oldPh) oldPh.remove();
+    container.appendChild(playhead);
+
+    // Click to seek
+    document.getElementById('timeline-canvas').onclick = (e) => {
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = x / rect.width;
+        const duration = playbackVideo.duration || 1;
+        playbackVideo.currentTime = percent * duration;
+    };
+
+    // Animation Loop for Playhead
+    const updatePlayhead = () => {
+        if (!playbackVideo.paused) {
+            const dur = playbackVideo.duration || 1;
+            const pct = (playbackVideo.currentTime / dur) * 100;
+            playhead.style.left = `${pct}%`;
+            requestAnimationFrame(updatePlayhead);
+        }
+    };
+    playbackVideo.addEventListener('play', () => requestAnimationFrame(updatePlayhead));
+    playbackVideo.addEventListener('timeupdate', () => {
+        // Also update on manual seek/pause
+        const dur = playbackVideo.duration || 1;
+        const pct = (playbackVideo.currentTime / dur) * 100;
+        playhead.style.left = `${pct}%`;
+    });
+
+    // LOAD BUFFERS (Async)
+    (async () => {
+        // 1. Get MR Buffer (already in audioManager or fetch again?)
+        // audioManager probably has it if we used webaudio to play? 
+        // Actually audioManager.backingNode is Streaming (MediaElementSource). It is NOT a buffer.
+        // We need to fetch and decode the file source again to visualize it.
+        const mrSrc = DOM.audio.src;
+        let mrBuffer = null;
+        if (mrSrc) {
+            mrBuffer = await audioManager.loadAudioBufferFromUrl(mrSrc);
+        }
+
+        // 2. Get Mic Buffer from Recorded Blob
+        let micBuffer = null;
+        if (state.recordedBlob) {
+            micBuffer = await audioManager.decodeAudioData(state.recordedBlob);
+        }
+
+        visualizer.setBuffers(mrBuffer, micBuffer);
+    })();
 }
 
 async function renderAndDownload() {
