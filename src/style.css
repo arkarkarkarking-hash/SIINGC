@@ -401,6 +401,39 @@ body {
     box-shadow: 0 0 5px #f0f;
 }
 
+/* Transport Controls */
+.transport-controls {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.play-btn-large {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    border: none;
+    color: #050510;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.play-btn-large:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 40px rgba(0, 242, 255, 0.6);
+}
+
+.play-btn-large:active {
+    transform: scale(0.95);
+}
+
 /* 3. Controls Panel */
 .controls-panel {
     display: grid;

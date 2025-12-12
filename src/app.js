@@ -14,7 +14,8 @@ const DOM = {
         download: document.getElementById('download-btn'),
         retake: document.getElementById('retake-btn'),
         retake: document.getElementById('retake-btn'),
-        uploadLabel: document.getElementById('upload-label') // [Refactored to Label]
+        uploadLabel: document.getElementById('upload-label'), // [Refactored to Label]
+        resultPlay: document.getElementById('result-play-btn') // [NEW] Play Button
     },
     inputs: {
         mrUpload: document.getElementById('mr-upload') // [NEW]
@@ -520,84 +521,93 @@ async function renderAndDownload() {
             stream = playbackVideo.captureStream();
         } else if (playbackVideo.mozCaptureStream) {
             stream = playbackVideo.mozCaptureStream();
-        } else {
-            throw new Error("captureStream not supported");
+            // Get capture stream for video track
+            let stream;
+            try {
+                if (playbackVideo.captureStream) {
+                    stream = playbackVideo.captureStream();
+                } else if (playbackVideo.mozCaptureStream) {
+                    stream = playbackVideo.mozCaptureStream();
+                } else if (playbackVideo.webkitCaptureStream) { // [FIX] Added webkit prefix
+                    stream = playbackVideo.webkitCaptureStream();
+                } else {
+                    throw new Error("captureStream not supported");
+                }
+            } catch (e) {
+                console.error(e);
+                status.innerText = "Error: Browser does not support captureStream for video.";
+                return;
+            }
+
+            // Start Audio Export Graph
+            const exportSession = audioManager.startResultExport(playbackVideo, { micVol, musicVol });
+
+            // Mix Audio Track + Original Video Track
+            const mixedAudioTrack = exportSession.stream.getAudioTracks()[0];
+            const videoTrack = stream.getVideoTracks()[0];
+            const finalStream = new MediaStream([videoTrack, mixedAudioTrack]);
+
+            // Format Support Check
+            let mimeType = 'video/webm';
+            let fileExt = 'webm';
+
+            if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
+                mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
+                fileExt = 'mp4';
+            } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+                mimeType = 'video/mp4';
+                fileExt = 'mp4';
+            } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
+                mimeType = 'video/webm;codecs=h264';
+                fileExt = 'webm';
+            }
+
+            console.log(`Exporting as ${mimeType}`);
+
+            const recorder = new MediaRecorder(finalStream, { mimeType });
+            const chunks = [];
+
+            recorder.ondataavailable = e => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            recorder.onstop = () => {
+                const b = new Blob(chunks, { type: mimeType });
+                const u = URL.createObjectURL(b);
+                const a = document.createElement('a');
+                a.href = u;
+                a.download = `neon-karaoke-mixed.${fileExt}`;
+                a.click();
+                status.innerText = `Done! Saved as neon-karaoke-mixed.${fileExt}`;
+
+                // Cleanup
+                exportSession.cleanup();
+
+                // Resume preview
+                playbackVideo.currentTime = 0;
+                playbackVideo.onended = null;
+            };
+
+            // Play and Record
+            try {
+                recorder.start();
+
+                // Handle playback end
+                playbackVideo.onended = () => {
+                    if (recorder.state !== 'inactive') recorder.stop();
+                };
+
+                // Start playback
+                await playbackVideo.play();
+                await backingAudio.play();
+
+            } catch (e) {
+                console.error("Render Error:", e);
+                status.innerText = "Error during rendering. See console.";
+                if (recorder.state !== 'inactive') recorder.stop();
+                exportSession.cleanup();
+            }
         }
-    } catch (e) {
-        console.error(e);
-        status.innerText = "Error: Browser does not support captureStream for video.";
-        return;
-    }
 
-    // Start Audio Export Graph
-    const exportSession = audioManager.startResultExport(playbackVideo, { micVol, musicVol });
-
-    // Mix Audio Track + Original Video Track
-    const mixedAudioTrack = exportSession.stream.getAudioTracks()[0];
-    const videoTrack = stream.getVideoTracks()[0];
-    const finalStream = new MediaStream([videoTrack, mixedAudioTrack]);
-
-    // Format Support Check
-    let mimeType = 'video/webm';
-    let fileExt = 'webm';
-
-    if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
-        mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
-        fileExt = 'mp4';
-    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-        mimeType = 'video/mp4';
-        fileExt = 'mp4';
-    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
-        mimeType = 'video/webm;codecs=h264';
-        fileExt = 'webm';
-    }
-
-    console.log(`Exporting as ${mimeType}`);
-
-    const recorder = new MediaRecorder(finalStream, { mimeType });
-    const chunks = [];
-
-    recorder.ondataavailable = e => {
-        if (e.data.size > 0) chunks.push(e.data);
-    };
-
-    recorder.onstop = () => {
-        const b = new Blob(chunks, { type: mimeType });
-        const u = URL.createObjectURL(b);
-        const a = document.createElement('a');
-        a.href = u;
-        a.download = `neon-karaoke-mixed.${fileExt}`;
-        a.click();
-        status.innerText = `Done! Saved as neon-karaoke-mixed.${fileExt}`;
-
-        // Cleanup
-        exportSession.cleanup();
-
-        // Resume preview
-        playbackVideo.currentTime = 0;
-        playbackVideo.onended = null;
-    };
-
-    // Play and Record
-    try {
-        recorder.start();
-
-        // Handle playback end
-        playbackVideo.onended = () => {
-            if (recorder.state !== 'inactive') recorder.stop();
-        };
-
-        // Start playback
-        await playbackVideo.play();
-        await backingAudio.play();
-
-    } catch (e) {
-        console.error("Render Error:", e);
-        status.innerText = "Error during rendering. See console.";
-        if (recorder.state !== 'inactive') recorder.stop();
-        exportSession.cleanup();
-    }
-}
-
-// Run
-init();
+        // Run
+        init();
