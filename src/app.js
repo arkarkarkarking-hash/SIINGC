@@ -337,21 +337,27 @@ function setupResultView() {
         // Just keeping in sync if needed
     };
 
-    // Volume Logic (Preview)
-    // HTML Media Element .volume is 0.0-1.0
-    volMic.addEventListener('input', (e) => playbackVideo.volume = Math.min(1, e.target.value));
-    volMusic.addEventListener('input', (e) => backingAudio.volume = Math.min(1, e.target.value));
+});
 
-    syncSlider.addEventListener('input', (e) => {
-        syncVal.innerText = `${e.target.value}ms`;
-        if (!playbackVideo.paused) {
-            backingAudio.currentTime = playbackVideo.currentTime + (parseInt(e.target.value) / 1000);
-        }
-    });
+// Audio Graph Volume Control via AudioManager
+const updateVolumes = () => {
+    const mv = parseFloat(volMic.value);
+    const bv = parseFloat(volMusic.value);
+    audioManager.setResultVolumes(mv, bv);
+};
 
-    // Save Mix Button
-    downloadBtn.onclick = () => renderAndDownload();
-    downloadBtn.innerText = "SAVE MIX";
+volMic.addEventListener('input', updateVolumes);
+volMusic.addEventListener('input', updateVolumes);
+
+// Initial set
+updateVolumes();
+
+// Save Mix Button
+downloadBtn.onclick = () => renderAndDownload();
+downloadBtn.innerText = "SAVE MIX";
+
+// Setup Audio Manager for Preview (High Quality Gain control)
+audioManager.setupResultPreview(playbackVideo);
 }
 
 async function renderAndDownload() {
@@ -361,16 +367,40 @@ async function renderAndDownload() {
     const playbackVideo = DOM.video.playback;
     const backingAudio = DOM.audio;
 
-    // Reset to start
+    // Validate inputs
+    const micVol = parseFloat(document.getElementById('vol-mic').value);
+    const musicVol = parseFloat(document.getElementById('vol-music').value);
+    const syncMs = parseInt(document.getElementById('sync-slider').value);
+    const syncSec = syncMs / 1000;
+
+    // Reset to start for recording
     playbackVideo.currentTime = 0;
-    backingAudio.currentTime = 0 + (parseInt(document.getElementById('sync-slider').value) / 1000);
+    // Apply sync offset: if voice is late (positive delay needed for voice), we might play music EARLIER or video LATER.
+    // Standard interpretation: "Sync" usually delays the track relative to the other.
+    // If sync slider is "Delay Vocals" (positive), we want video to start slightly LATER than audio? 
+    // Or normally "Delay" means shift positive. 
+    // Logic in preview: backingAudio.currentTime = playbackVideo.currentTime + offset.
+    // If offset is +1s: When video is at 0, audio is at 1. Audio is AHEAD. 
+    // This creates "Vocals (Video)" appearing DELAYED relative to music. Correct.
+    backingAudio.currentTime = 0 + syncSec;
 
     // Setup Realtime Capture
-    const stream = playbackVideo.captureStream();
-    // CaptureStream gets what is painted/played.
-    // However, it captures VIDEO element audio. We need to MIX it with Backing Audio.
+    let stream;
+    try {
+        if (playbackVideo.captureStream) {
+            stream = playbackVideo.captureStream();
+        } else if (playbackVideo.mozCaptureStream) {
+            stream = playbackVideo.mozCaptureStream();
+        } else {
+            throw new Error("captureStream not supported");
+        }
+    } catch (e) {
+        console.error(e);
+        status.innerText = "Error: Browser does not support captureStream for video.";
+        return;
+    }
 
-    const ctx = new AudioContext(); // New Context for mixing
+    const ctx = new AudioContext();
     const dest = ctx.createMediaStreamDestination();
 
     // Sources
@@ -379,56 +409,82 @@ async function renderAndDownload() {
 
     // Gains
     const micGain = ctx.createGain();
-    micGain.gain.value = parseFloat(document.getElementById('vol-mic').value);
+    micGain.gain.value = micVol;
 
     const musicGain = ctx.createGain();
-    musicGain.gain.value = parseFloat(document.getElementById('vol-music').value);
+    musicGain.gain.value = musicVol;
 
     micSrc.connect(micGain).connect(dest);
     musicSrc.connect(musicGain).connect(dest);
 
-    // Connect to destination (speakers) too so user hears what is happening?
-    // micGain.connect(ctx.destination); // Optional
-
-    // Create Recorder for the MIXED result
+    // Mix Audio Track + Original Video Track
     const mixedAudioTrack = dest.stream.getAudioTracks()[0];
     const videoTrack = stream.getVideoTracks()[0];
-
     const finalStream = new MediaStream([videoTrack, mixedAudioTrack]);
-    const recorder = new MediaRecorder(finalStream, { mimeType: 'video/webm' });
+
+    // Format Support Check
+    let mimeType = 'video/webm';
+    let fileExt = 'webm';
+
+    if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
+        mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
+        fileExt = 'mp4';
+    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
+        fileExt = 'mp4';
+    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
+        mimeType = 'video/webm;codecs=h264';
+        fileExt = 'webm'; // Can be renamed to mp4 sometimes but safe to keep webm
+    }
+
+    console.log(`Exporting as ${mimeType}`);
+
+    const recorder = new MediaRecorder(finalStream, { mimeType });
     const chunks = [];
 
-    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.ondataavailable = e => {
+        if (e.data.size > 0) chunks.push(e.data);
+    };
+
     recorder.onstop = () => {
-        const b = new Blob(chunks, { type: 'video/webm' });
+        const b = new Blob(chunks, { type: mimeType });
         const u = URL.createObjectURL(b);
         const a = document.createElement('a');
         a.href = u;
-        a.download = 'neon-karaoke-mixed.webm';
+        a.download = `neon-karaoke-mixed.${fileExt}`;
         a.click();
-        status.innerText = "Done! Saved as neon-karaoke-mixed.webm";
+        status.innerText = `Done! Saved as neon-karaoke-mixed.${fileExt}`;
 
-        // Clean up connections
+        // Cleanup
         micSrc.disconnect();
         musicSrc.disconnect();
         ctx.close();
 
-        // Restore sources to original graph if needed, but we are done.
+        // Loop back for user to play again if they want
+        playbackVideo.currentTime = 0;
+        playbackVideo.onended = null;
     };
 
     // Play and Record
     try {
-        await playbackVideo.play();
-        await backingAudio.play();
         recorder.start();
 
+        // Handle playback end
         playbackVideo.onended = () => {
-            recorder.stop();
-            playbackVideo.onended = null;
+            if (recorder.state !== 'inactive') recorder.stop();
         };
+
+        // Start playback
+        await playbackVideo.play();
+        await backingAudio.play();
+
     } catch (e) {
         console.error("Render Error:", e);
-        status.innerText = "Error during rendering.";
+        status.innerText = "Error during rendering. See console.";
+        if (recorder.state !== 'inactive') recorder.stop();
+        micSrc.disconnect();
+        musicSrc.disconnect();
+        ctx.close();
     }
 }
 

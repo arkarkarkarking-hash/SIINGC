@@ -91,36 +91,71 @@ class AudioManager {
 
     // We need to "Mix" the recorded video audio (Mic) + The original backing track
     // This function creates a destination stream that combines both with offsets/gains
-    startRenderingMix(videoElement, backingElement, options) {
-        // options: { micVol, musicVol, syncOffsetMs }
+    // --- Result View Helpers ---
 
-        const renderDest = this.ctx.createMediaStreamDestination();
+    setupResultPreview(videoElement) {
+        // Handle Video (Mic Recording)
+        // Check if we already have a source for this element?
+        // Note: Creating a source for the same element twice in same context is harmless? 
+        // MDN says: safely calls createMediaElementSource again? NO. It will throw if called again on same element?
+        // Actually, for a given element, you can only call it once? 
+        // "A MediaElementAudioSourceNode is created ... Only one ... can be created for a given HTMLMediaElement."
+        // So we need to store it.
 
-        // 1. Mic/Video Source (The recorded blob playing in videoElement)
-        const videoSource = this.ctx.createMediaElementSource(videoElement);
-        const videoGain = this.ctx.createGain();
-        videoGain.gain.value = options.micVol;
+        if (!this.resultVideoNode) {
+            try {
+                this.resultVideoNode = this.ctx.createMediaElementSource(videoElement);
+                this.resultVideoGain = this.ctx.createGain();
+                this.resultVideoNode.connect(this.resultVideoGain);
+                this.resultVideoGain.connect(this.ctx.destination);
+            } catch (e) {
+                console.warn("Could not create video source (maybe already exists):", e);
+            }
+        }
 
-        // Simplified Render:
-        videoSource.connect(videoGain);
-        videoGain.connect(renderDest);
+        // Backing Track is already connected to destination via this.backingNode -> this.backingGain in constructor/setup.
+    }
 
-        // 2. Backing Source (The original music)
-        // We need a NEW source because the original `backingNode` is attached to `audioElement` which is for playback.
-        const musicSource = this.ctx.createMediaElementSource(backingElement);
-        const musicGain = this.ctx.createGain();
-        musicGain.gain.value = options.musicVol;
+    setResultVolumes(micVol, musicVol) {
+        if (this.resultVideoGain) {
+            this.resultVideoGain.gain.value = micVol;
+        }
+        if (this.backingGain) {
+            this.backingGain.gain.value = musicVol;
+        }
+    }
 
-        musicSource.connect(musicGain);
-        musicGain.connect(renderDest);
+    startResultExport(videoElement, options) {
+        // options: { micVol, musicVol }
+        const dest = this.ctx.createMediaStreamDestination();
+
+        // 1. Mic/Video Source
+        // We reuse the existing source node if possible, or create branches.
+        // We really need separate GAIN for export vs preview? 
+        // Yes, because checking preview while exporting might be annoying if they are linked?
+        // Actually rendering happens during playback. We want to hear it too?
+        // Let's use creating separate gains feeding the DESTINATION.
+
+        const exportMicGain = this.ctx.createGain();
+        exportMicGain.gain.value = options.micVol;
+        if (this.resultVideoNode) {
+            this.resultVideoNode.connect(exportMicGain);
+        }
+        exportMicGain.connect(dest);
+
+        const exportMusicGain = this.ctx.createGain();
+        exportMusicGain.gain.value = options.musicVol;
+        if (this.backingNode) {
+            this.backingNode.connect(exportMusicGain);
+        }
+        exportMusicGain.connect(dest);
 
         return {
-            stream: renderDest.stream,
+            stream: dest.stream,
             cleanup: () => {
-                videoSource.disconnect();
-                videoGain.disconnect();
-                musicSource.disconnect();
-                musicGain.disconnect();
+                exportMicGain.disconnect();
+                exportMusicGain.disconnect();
+                // We do NOT disconnect backingNode or resultVideoNode as they are persistent
             }
         };
     }
