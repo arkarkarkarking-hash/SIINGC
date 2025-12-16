@@ -2,6 +2,7 @@
   "name": "SIINGC",
   "description": "A professional-grade web recording studio. Upload a backing track, record vocals, apply EQ/Reverb effects, and export a video with audio visualization.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

@@ -94,13 +94,36 @@ export class AudioEngine {
   // --- Asset Loading ---
 
   async loadBackingTrack(arrayBuffer: ArrayBuffer) {
-    this.backingBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    // Clone buffer to prevent detachment issues during decode
+    const buffer = arrayBuffer.slice(0);
+    this.backingBuffer = await this.decodeAudioData(buffer);
     return this.backingBuffer.duration;
   }
 
   async loadVocalTrack(blob: Blob) {
     const arrayBuffer = await blob.arrayBuffer();
-    this.vocalBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    // Clone buffer to prevent detachment issues during decode
+    const buffer = arrayBuffer.slice(0);
+    this.vocalBuffer = await this.decodeAudioData(buffer);
+  }
+
+  // Robust decoding wrapper handling both Promise and Callback APIs
+  private decodeAudioData(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const res = this.audioContext.decodeAudioData(
+          arrayBuffer,
+          (buffer) => resolve(buffer),
+          (err) => reject(new Error(`Decoding error: ${err}`))
+        );
+        // Handle Promise-based return (Modern Browsers)
+        if (res && typeof res.then === 'function') {
+          res.catch((e) => reject(e));
+        }
+      } catch (e) {
+        reject(e);
+      }
+    });
   }
 
   // --- Playback Control ---
@@ -179,7 +202,4 @@ export class AudioEngine {
     }
     this.reverbNode.buffer = impulse;
   }
-
-  // Connects a media stream (Mic) to the master for monitoring or analysis, if desired
-  // But usually, we record raw stream separately.
 }

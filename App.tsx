@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, Mic, Square, Play, Pause, Download, Music, RotateCcw, Save } from 'lucide-react';
+import { Upload, Mic, Square, Play, Pause, Download, Music, RotateCcw, Video as VideoIcon } from 'lucide-react';
 import { AppState, AudioEffects } from './types';
 import { AudioEngine } from './services/AudioEngine';
 import { Visualizer } from './components/Visualizer';
@@ -28,27 +28,34 @@ export default function App() {
 
   // References
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null); // Hidden video element for source
+  
   const rafRef = useRef<number>();
   const startTimeRef = useRef<number>(0); // When playback started
 
-  // Visualizer
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-
   // --- Setup ---
   useEffect(() => {
-    setAnalyser(engine.getAnalyser());
-    
-    // Animation loop for timeline
+    // Animation loop for timeline and sync
     const loop = () => {
       if (isPlaying) {
         const now = engine.getContext().currentTime;
         const elapsed = now - startTimeRef.current;
+        
+        // Sync video if we are reviewing
+        if ((appState === AppState.REVIEW || appState === AppState.EXPORTING) && videoRef.current) {
+          // Check drift. If video is off by more than 0.1s, sync it.
+          if (Math.abs(videoRef.current.currentTime - elapsed) > 0.15) {
+             videoRef.current.currentTime = elapsed;
+          }
+        }
+
         if (elapsed >= duration) {
           setIsPlaying(false);
           setCurrentTime(duration);
           engine.stop();
+          if (videoRef.current) videoRef.current.pause();
         } else {
           setCurrentTime(elapsed);
           rafRef.current = requestAnimationFrame(loop);
@@ -63,7 +70,7 @@ export default function App() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [isPlaying, duration]);
+  }, [isPlaying, duration, appState]);
 
   useEffect(() => {
     // Apply effects whenever they change
@@ -81,6 +88,10 @@ export default function App() {
     engine.stop();
     setAppState(AppState.IDLE);
     setFileName(file.name);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.src = "";
+    }
     
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -88,30 +99,67 @@ export default function App() {
       setDuration(dur);
       setAppState(AppState.READY_TO_RECORD);
     } catch (err) {
-      alert("Error loading audio file. Please use MP3/WAV.");
+      alert("Error loading audio file. Please ensure it is a valid audio format (MP3/WAV).");
       console.error(err);
+      setAppState(AppState.IDLE);
+    } finally {
+      // Clear input so selecting the same file again works if the user retries
+      e.target.value = '';
     }
   };
 
   const startRecording = async () => {
     try {
       await engine.resumeContext();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Request Audio AND Video
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: false, // Better for music recording
+          autoGainControl: false,
+          noiseSuppression: false
+        }, 
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user"
+        } 
+      });
+      
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream);
+      // Show preview
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.muted = true; // Mute preview to prevent feedback
+        videoRef.current.play();
+      }
+
+      // We record a single WebM blob containing both Audio and Video.
+      // We will extract audio from this later for the Engine, and use the video track for visual.
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
       mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      chunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+          chunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await engine.loadVocalTrack(audioBlob);
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        
+        // 1. Load Audio into Engine (Engine decodes the audio track from the video file)
+        await engine.loadVocalTrack(blob);
+        
+        // 2. Setup Video for Playback (Review)
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+          videoRef.current.src = URL.createObjectURL(blob);
+          videoRef.current.muted = true; // Always mute the video element during review, we play audio via Engine
+        }
+
         setAppState(AppState.REVIEW);
       };
 
@@ -126,8 +174,8 @@ export default function App() {
       setIsPlaying(true);
 
     } catch (err) {
-      console.error("Microphone access denied or error", err);
-      alert("Microphone permission is required to record.");
+      console.error("Camera/Mic access denied or error", err);
+      alert("Camera and Microphone permissions are required to record.");
     }
   };
 
@@ -135,6 +183,7 @@ export default function App() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    // Stop stream tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -145,10 +194,20 @@ export default function App() {
   const togglePlayback = () => {
     if (isPlaying) {
       engine.stop();
+      if (videoRef.current) videoRef.current.pause();
       setIsPlaying(false);
     } else {
       engine.resumeContext();
+      
+      // Play Audio (Mixed: Backing + Vocals)
       engine.play(currentTime, effects);
+      
+      // Play Video (Synced)
+      if (videoRef.current) {
+        videoRef.current.currentTime = currentTime;
+        videoRef.current.play();
+      }
+
       // Adjust start time ref to account for seeking
       startTimeRef.current = engine.getContext().currentTime - currentTime;
       setIsPlaying(true);
@@ -159,12 +218,25 @@ export default function App() {
     setCurrentTime(time);
     if (isPlaying) {
       engine.play(time, effects);
+      if (videoRef.current) {
+        videoRef.current.currentTime = time;
+        // Video keeps playing if it was playing
+      }
       startTimeRef.current = engine.getContext().currentTime - time;
+    } else {
+      if (videoRef.current) {
+        videoRef.current.currentTime = time;
+      }
     }
   };
 
   const handleReset = () => {
     engine.stop();
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.src = "";
+      videoRef.current.srcObject = null;
+    }
     setIsPlaying(false);
     setCurrentTime(0);
     setAppState(AppState.READY_TO_RECORD);
@@ -173,8 +245,12 @@ export default function App() {
   // --- Export Logic (Video/Canvas Recorder) ---
   const handleDownload = async () => {
     setAppState(AppState.EXPORTING);
-    engine.stop(); // Ensure stop
+    engine.stop();
+    if (videoRef.current) videoRef.current.pause();
     
+    // Wait a tick for UI update
+    await new Promise(r => setTimeout(r, 100));
+
     // We need to play the song from start to finish and capture the canvas + audio
     const canvas = document.querySelector('canvas');
     if (!canvas) return;
@@ -208,7 +284,7 @@ export default function App() {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `studiomix_export_${Date.now()}.webm`;
+      a.download = `studiomix_recording_${Date.now()}.webm`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -217,7 +293,16 @@ export default function App() {
 
     // START RENDER PLAYBACK
     recorder.start();
+    
+    // Play Audio (Mixed)
     engine.play(0, effects);
+    
+    // Play Video Source
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play();
+    }
+
     startTimeRef.current = engine.getContext().currentTime;
     setIsPlaying(true);
 
@@ -225,6 +310,7 @@ export default function App() {
     setTimeout(() => {
       recorder.stop();
       engine.stop();
+      if (videoRef.current) videoRef.current.pause();
       setIsPlaying(false);
     }, duration * 1000 + 500); // Add 500ms buffer
   };
@@ -239,6 +325,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 flex flex-col items-center">
       
+      {/* Hidden Video Element for Logic */}
+      <video 
+        ref={videoRef} 
+        className="hidden" 
+        playsInline 
+        muted // Muted to prevent direct output; AudioEngine handles audio
+      />
+
       {/* Header */}
       <header className="w-full max-w-4xl flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-2">
@@ -256,12 +350,15 @@ export default function App() {
 
       <main className="w-full max-w-4xl flex flex-col gap-6">
         
-        {/* Main Display Area (Visualizer + Status) */}
-        <div className="relative w-full h-64 bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
-          {/* Visualizer Canvas */}
+        {/* Main Display Area (Video + Visualizer) */}
+        {/* Increased height for video aspect ratio */}
+        <div className="relative w-full aspect-video bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+          {/* Visualizer Canvas (Now acts as the main screen) */}
           <Visualizer 
-            analyser={analyser} 
-            className="w-full h-full object-cover opacity-80" 
+            videoElement={videoRef.current}
+            className="w-full h-full object-cover" 
+            width={1280}
+            height={720}
           />
           
           {/* Overlay Content */}
@@ -332,7 +429,8 @@ export default function App() {
                     onClick={startRecording}
                     className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg shadow-red-600/20 transition-all hover:scale-105"
                   >
-                    <Mic className="w-8 h-8" />
+                    {/* Changed icon to Video to indicate video recording */}
+                    <VideoIcon className="w-8 h-8" />
                   </button>
                 ) : (
                   // Review Mode Controls
@@ -362,8 +460,8 @@ export default function App() {
               </div>
               
               <div className="mt-4 text-center text-sm text-slate-500">
-                {appState === AppState.READY_TO_RECORD && "Press Mic to Start"}
-                {appState === AppState.RECORDING && "Recording..."}
+                {appState === AppState.READY_TO_RECORD && "Press Record to Start"}
+                {appState === AppState.RECORDING && "Recording Video & Audio..."}
                 {appState === AppState.REVIEW && "Review & Edit"}
               </div>
             </div>
